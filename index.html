@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amptek MCA Spectrum Viewer</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Hammer.js and Chartjs-Plugin-Zoom for interactive zooming -->
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .drag-over { border-color: #3b82f6 !important; background-color: #eff6ff !important; }
+        /* スクロールバーのカスタマイズ（サイドバーが長くなった際に見栄えを良くするため） */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 h-screen overflow-hidden flex flex-col">
+
+    <header class="bg-white shadow-sm px-6 py-4 flex justify-between items-center border-b border-gray-200 shrink-0">
+        <h1 class="text-xl font-bold text-gray-900 flex items-center">
+            <svg class="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
+            MCA Spectrum Viewer
+        </h1>
+    </header>
+
+    <main class="flex-grow p-4 md:p-6 flex flex-col md:flex-row gap-4 max-w-[1600px] mx-auto w-full min-h-0 overflow-hidden">
+        <!-- Sidebar for file input and metadata -->
+        <aside class="w-full md:w-1/4 flex flex-col gap-4 h-full overflow-y-auto pr-2 pb-2 shrink-0">
+            <div id="dropZone" class="bg-white p-6 rounded-lg shadow-sm border-2 border-dashed border-gray-300 text-center transition-colors cursor-pointer hover:bg-gray-50 shrink-0">
+                <input type="file" id="fileInput" accept=".mca" class="hidden">
+                <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <div class="mt-4 text-sm text-gray-600">
+                    <span class="font-medium text-blue-600 hover:text-blue-500">クリックしてファイルを選択</span>
+                    <br>または .mca ファイルをドラッグ＆ドロップ
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex-grow">
+                <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider mb-3 border-b pb-2">Measurement Data</h2>
+                <div id="metadataContainer" class="space-y-2 text-sm text-gray-600 overflow-y-auto max-h-[500px]">
+                    <!-- Metadata will be injected here -->
+                    <p class="text-gray-400 italic">No data loaded.</p>
+                </div>
+            </div>
+
+            <!-- X-Axis Settings Panel -->
+            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                <h3 class="text-sm font-semibold text-gray-800 mb-3 border-b pb-1">X-Axis Range</h3>
+                <div class="flex flex-col gap-2">
+                    <div class="flex items-center gap-2">
+                        <label class="text-[10px] text-gray-500 w-6">Max:</label>
+                        <input type="number" id="xAxisMax" class="border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:border-blue-500" placeholder="Auto">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="text-[10px] text-gray-500 w-6">Min:</label>
+                        <input type="number" id="xAxisMin" class="border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:border-blue-500" placeholder="Auto">
+                    </div>
+                    <div class="flex gap-2 mt-2">
+                        <button id="applyXAxisBtn" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-1.5 px-3 rounded w-full transition-colors">Apply</button>
+                        <button id="resetXAxisBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium py-1.5 px-3 rounded w-full transition-colors border border-gray-300">Reset</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Y-Axis Settings Panel -->
+            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                <h3 class="text-sm font-semibold text-gray-800 mb-3 border-b pb-1">Y-Axis Range</h3>
+                
+                <!-- Linear Settings -->
+                <div class="mb-3">
+                    <span class="text-xs font-bold text-gray-700 block mb-1">Linear</span>
+                    <div class="flex items-center gap-2 mb-1">
+                        <label class="text-[10px] text-gray-500 w-6">Max:</label>
+                        <input type="number" id="yAxisMaxLin" class="border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:border-blue-500" placeholder="Auto">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="text-[10px] text-gray-500 w-6">Min:</label>
+                        <input type="number" id="yAxisMinLin" class="border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:border-blue-500" placeholder="Auto">
+                    </div>
+                </div>
+
+                <!-- Log Settings -->
+                <div class="mb-3">
+                    <span class="text-xs font-bold text-gray-700 block mb-1">Log</span>
+                    <div class="flex items-center gap-2 mb-1">
+                        <label class="text-[10px] text-gray-500 w-6">Max:</label>
+                        <input type="number" id="yAxisMaxLog" class="border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:border-blue-500" placeholder="Auto">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="text-[10px] text-gray-500 w-6">Min:</label>
+                        <input type="number" id="yAxisMinLog" class="border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:border-blue-500" placeholder="Auto">
+                    </div>
+                </div>
+
+                <div class="flex gap-2 mt-4">
+                    <button id="applyYAxisBtn" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-1.5 px-3 rounded w-full transition-colors">Apply</button>
+                    <button id="resetYAxisBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium py-1.5 px-3 rounded w-full transition-colors border border-gray-300">Reset</button>
+                </div>
+            </div>
+            
+            <!-- Energy Calibration Panel -->
+            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                <h3 class="text-sm font-semibold text-gray-800 mb-3 border-b pb-1">Energy Calibration</h3>
+                <p class="text-[10px] text-gray-500 mb-2 font-mono">Energy = a * Channel + b</p>
+                
+                <div class="flex flex-col gap-2">
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs text-gray-600 w-4 font-mono font-bold">a:</label>
+                        <input type="number" id="calibA" step="any" class="border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:border-blue-500" placeholder="e.g. 1.0">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs text-gray-600 w-4 font-mono font-bold">b:</label>
+                        <input type="number" id="calibB" step="any" class="border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:border-blue-500" placeholder="e.g. 0.0">
+                    </div>
+                    <div class="flex gap-2 mt-2">
+                        <button id="applyCalibBtn" class="bg-green-600 hover:bg-green-700 text-white text-xs font-medium py-1.5 px-3 rounded w-full transition-colors">Calibrate</button>
+                        <button id="resetCalibBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium py-1.5 px-3 rounded w-full transition-colors border border-gray-300">Reset</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-blue-50 p-4 rounded-lg shadow-sm border border-blue-100 shrink-0">
+                <h3 class="text-sm font-semibold text-blue-800 mb-1">操作ヒント</h3>
+                <ul class="text-xs text-blue-700 list-disc list-inside space-y-1">
+                    <li>マウスホイール: X軸ズーム</li>
+                    <li>ドラッグ: グラフのパン（移動）</li>
+                    <li>データ点ホバー: カウント数表示</li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Main Chart Area -->
+        <section class="w-full md:w-3/4 flex flex-col gap-4 h-full min-h-0">
+            <!-- Linear Chart -->
+            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col flex-1 min-h-0">
+                <div class="flex justify-between items-center mb-2 shrink-0">
+                    <h2 class="text-lg font-semibold text-gray-800"><span id="chartTitleLin">Waiting for data...</span> (Linear)</h2>
+                    <button id="resetZoomBtnLin" class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 py-1 px-3 rounded transition-colors hidden">
+                        Reset Zoom
+                    </button>
+                </div>
+                <div class="relative w-full flex-1 min-h-0">
+                    <canvas id="spectrumChartLin"></canvas>
+                </div>
+            </div>
+
+            <!-- Log Chart -->
+            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col flex-1 min-h-0">
+                <div class="flex justify-between items-center mb-2 shrink-0">
+                    <h2 class="text-lg font-semibold text-gray-800"><span id="chartTitleLog">Waiting for data...</span> (Log)</h2>
+                    <button id="resetZoomBtnLog" class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 py-1 px-3 rounded transition-colors hidden">
+                        Reset Zoom
+                    </button>
+                </div>
+                <div class="relative w-full flex-1 min-h-0">
+                    <canvas id="spectrumChartLog"></canvas>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let chartInstanceLin = null;
+        let chartInstanceLog = null;
+        
+        // データをグローバルに保持し、再描画時のデータ損失（構造変化によるバグ）を防ぐ
+        let currentRawData = [];
+        let currentFilename = 'Spectrum';
+
+        // Calibration State
+        let calibA = 1.0;
+        let calibB = 0.0;
+        let isCalibrated = false;
+
+        // --- MCAファイルのパース関数 ---
+        // 確信度: 高。AmptekフォーマットのASCII仕様に準拠しています。
+        function parseMCA(text) {
+            const lines = text.split(/\r?\n/);
+            const data = [];
+            const meta = {};
+            let isDataSection = false;
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                
+                if (line === '<<DATA>>') {
+                    isDataSection = true;
+                    continue;
+                }
+                if (line === '<<END>>' || line === '<<DP5 CONFIGURATION>>') {
+                    isDataSection = false;
+                    continue;
+                }
+
+                if (isDataSection) {
+                    if (line !== '') {
+                        data.push(parseInt(line, 10));
+                    }
+                } else if (line.includes(' - ')) {
+                    // "KEY - VALUE" 形式のメタデータを抽出
+                    const idx = line.indexOf(' - ');
+                    const key = line.substring(0, idx).trim();
+                    const val = line.substring(idx + 3).trim();
+                    meta[key] = val;
+                } else if (line.includes(': ')) {
+                    // "<<DPP STATUS>>" 内の "Key: Value" 形式
+                    const idx = line.indexOf(': ');
+                    const key = line.substring(0, idx).trim();
+                    const val = line.substring(idx + 2).trim();
+                    meta[key] = val;
+                }
+            }
+            return { data, meta };
+        }
+
+        // --- グラフの描画関数 ---
+        function renderChart() {
+            if (currentRawData.length === 0) return;
+            const dataArray = currentRawData;
+            const filename = currentFilename;
+
+            const ctxLin = document.getElementById('spectrumChartLin').getContext('2d');
+            const ctxLog = document.getElementById('spectrumChartLog').getContext('2d');
+            
+            // X軸の手動設定値を取得
+            const xMinInput = parseFloat(document.getElementById('xAxisMin').value);
+            const xMaxInput = parseFloat(document.getElementById('xAxisMax').value);
+
+            // Y軸の手動設定値を取得 (Linear)
+            const yMinInputLin = parseFloat(document.getElementById('yAxisMinLin').value);
+            const yMaxInputLin = parseFloat(document.getElementById('yAxisMaxLin').value);
+
+            // Y軸の手動設定値を取得 (Log)
+            const yMinInputLog = parseFloat(document.getElementById('yAxisMinLog').value);
+            const yMaxInputLog = parseFloat(document.getElementById('yAxisMaxLog').value);
+
+            // データの {x, y} 配列化 (X軸を数学的な数値軸: Linearスケールとして扱うための改修)
+            const chartData = dataArray.map((counts, ch) => {
+                let xVal = ch;
+                if (isCalibrated) {
+                    xVal = calibA * ch + calibB;
+                }
+                return { x: xVal, y: counts };
+            });
+            const xAxisTitle = isCalibrated ? 'Energy' : 'Channel';
+
+            // 既存のチャートがあれば破棄
+            if (chartInstanceLin) chartInstanceLin.destroy();
+            if (chartInstanceLog) chartInstanceLog.destroy();
+
+            document.getElementById('chartTitleLin').textContent = filename;
+            document.getElementById('chartTitleLog').textContent = filename;
+
+            const commonOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: (items) => {
+                                const item = items[0];
+                                const rawX = item.raw.x;
+                                // 逆算して元のチャンネル番号を取得 (ホバー表示用)
+                                const originalCh = isCalibrated ? Math.round((rawX - calibB) / calibA) : rawX;
+                                
+                                if (isCalibrated) {
+                                    return `Energy: ${rawX.toFixed(2)} (Ch: ${originalCh})`;
+                                }
+                                return `Channel: ${originalCh}`;
+                            },
+                            label: (item) => `Counts: ${item.raw.y}`
+                        }
+                    }
+                }
+            };
+
+            const dataset = {
+                label: 'Counts',
+                data: chartData, // labelsプロパティへの依存を廃止し、XY座標系を使用
+                borderColor: 'rgba(59, 130, 246, 0.8)', // Tailwind Blue-500
+                backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                borderWidth: 1.5,
+                pointRadius: 0,        // 通常時は点を非表示にして高速化
+                pointHoverRadius: 4,   // ホバー時は点を表示
+                fill: true,
+                stepped: true          // ヒストグラム的な階段状の線
+            };
+
+            // X軸の共通設定（キリの良い数字＆整数のみを表示 ＋ 手動レンジ設定）
+            const commonScalesX = {
+                type: 'linear', // categoryからlinearへ変更
+                title: { display: true, text: xAxisTitle },
+                grid: { color: 'rgba(0,0,0,0.05)' },
+                min: !isNaN(xMinInput) ? xMinInput : undefined,
+                max: !isNaN(xMaxInput) ? xMaxInput : undefined,
+                ticks: {
+                    // 目盛りに小数が現れるのを防ぐフィルター
+                    callback: function(value) {
+                        if (value % 1 === 0) return value;
+                        return null; 
+                    }
+                }
+            };
+
+            // Linear Chart
+            chartInstanceLin = new Chart(ctxLin, {
+                type: 'line',
+                data: {
+                    datasets: [dataset] // labelsの指定は不要
+                },
+                options: {
+                    ...commonOptions,
+                    plugins: {
+                        ...commonOptions.plugins,
+                        zoom: {
+                            pan: {
+                                enabled: true,
+                                mode: 'x',
+                                onPanComplete: () => document.getElementById('resetZoomBtnLin').classList.remove('hidden')
+                            },
+                            zoom: {
+                                wheel: { enabled: true },
+                                pinch: { enabled: true },
+                                mode: 'x',
+                                onZoomComplete: () => document.getElementById('resetZoomBtnLin').classList.remove('hidden')
+                            }
+                        }
+                    },
+                    scales: {
+                        x: commonScalesX,
+                        y: {
+                            type: 'linear',
+                            title: { display: true, text: 'Counts' },
+                            grid: { color: 'rgba(0,0,0,0.05)' },
+                            min: !isNaN(yMinInputLin) ? Math.max(0, yMinInputLin) : 0, // 物理的に0未満を防止
+                            max: !isNaN(yMaxInputLin) ? yMaxInputLin : undefined,
+                            ticks: {
+                                // 手動Max設定時などに発生する中途半端な小数の目盛りを排除
+                                callback: function(value) {
+                                    if (value % 1 === 0) return value;
+                                    return null;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            document.getElementById('resetZoomBtnLin').classList.add('hidden');
+
+            // Log Chart
+            chartInstanceLog = new Chart(ctxLog, {
+                type: 'line',
+                data: {
+                    datasets: [dataset] // labelsの指定は不要
+                },
+                options: {
+                    ...commonOptions,
+                    plugins: {
+                        ...commonOptions.plugins,
+                        zoom: {
+                            pan: {
+                                enabled: true,
+                                mode: 'x',
+                                onPanComplete: () => document.getElementById('resetZoomBtnLog').classList.remove('hidden')
+                            },
+                            zoom: {
+                                wheel: { enabled: true },
+                                pinch: { enabled: true },
+                                mode: 'x',
+                                onZoomComplete: () => document.getElementById('resetZoomBtnLog').classList.remove('hidden')
+                            }
+                        }
+                    },
+                    scales: {
+                        x: commonScalesX,
+                        y: {
+                            type: 'logarithmic',
+                            title: { display: true, text: 'Counts (Log)' },
+                            grid: { color: 'rgba(0,0,0,0.05)' },
+                            min: !isNaN(yMinInputLog) ? (yMinInputLog <= 0 ? 0.1 : yMinInputLog) : 0.1, // Logで0以下は計算不能なため回避
+                            max: !isNaN(yMaxInputLog) ? yMaxInputLog : undefined
+                        }
+                    }
+                }
+            });
+            document.getElementById('resetZoomBtnLog').classList.add('hidden');
+        }
+
+        // --- メタデータの表示更新 ---
+        function updateMetadataUI(meta) {
+            const container = document.getElementById('metadataContainer');
+            container.innerHTML = '';
+            
+            if (Object.keys(meta).length === 0) {
+                container.innerHTML = '<p class="text-gray-400 italic">No valid metadata found.</p>';
+                return;
+            }
+
+            // 重要な情報を優先して表示
+            const priorityKeys = ['LIVE_TIME', 'REAL_TIME', 'START_TIME', 'GAIN', 'Real Time', 'Live Time'];
+            
+            priorityKeys.forEach(key => {
+                if (meta[key]) {
+                    container.innerHTML += `<div class="flex justify-between border-b border-gray-100 py-1"><span class="font-medium">${key}</span><span>${meta[key]}</span></div>`;
+                    delete meta[key]; // 残りのリストから除外
+                }
+            });
+
+            // 残りのメタデータを表示
+            for (const [key, value] of Object.entries(meta)) {
+                if(value) {
+                    container.innerHTML += `<div class="flex justify-between border-b border-gray-100 py-1 opacity-70"><span class="font-medium text-xs">${key}</span><span class="text-xs truncate max-w-[150px]" title="${value}">${value}</span></div>`;
+                }
+            }
+        }
+
+        // --- ファイル読み込み処理 ---
+        function handleFile(file) {
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target.result;
+                const parsed = parseMCA(text);
+                
+                if (parsed.data.length === 0) {
+                    alert("No valid spectrum data found in the file.");
+                    return;
+                }
+
+                // 読み込んだデータをグローバル変数に保存して描画
+                currentRawData = parsed.data;
+                currentFilename = file.name;
+                renderChart();
+                updateMetadataUI(parsed.meta);
+            };
+            reader.readAsText(file);
+        }
+
+        // --- 空のグラフ（初期状態）の描画関数 ---
+        function renderEmptyChart() {
+            const ctxLin = document.getElementById('spectrumChartLin').getContext('2d');
+            const ctxLog = document.getElementById('spectrumChartLog').getContext('2d');
+            
+            const commonOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } }
+            };
+
+            chartInstanceLin = new Chart(ctxLin, {
+                type: 'line',
+                data: { datasets: [] },
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        x: { type: 'linear', title: { display: true, text: 'Channel' }, min: 0, max: 1024, grid: { color: 'rgba(0,0,0,0.05)' } },
+                        y: { type: 'linear', title: { display: true, text: 'Counts' }, min: 0, max: 100, grid: { color: 'rgba(0,0,0,0.05)' } }
+                    }
+                }
+            });
+
+            chartInstanceLog = new Chart(ctxLog, {
+                type: 'line',
+                data: { datasets: [] },
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        x: { type: 'linear', title: { display: true, text: 'Channel' }, min: 0, max: 1024, grid: { color: 'rgba(0,0,0,0.05)' } },
+                        y: { type: 'logarithmic', title: { display: true, text: 'Counts (Log)' }, min: 0.1, max: 100, grid: { color: 'rgba(0,0,0,0.05)' } }
+                    }
+                }
+            });
+        }
+
+        // --- イベントリスナーの登録 ---
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            // 1. 初期状態として空のグラフ枠を描画
+            renderEmptyChart();
+
+            // 2. ドラッグ＆ドロップとファイル選択の設定
+            const dropZone = document.getElementById('dropZone');
+            const fileInput = document.getElementById('fileInput');
+
+            dropZone.addEventListener('click', () => fileInput.click());
+            
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) handleFile(e.target.files[0]);
+            });
+
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('drag-over');
+            });
+
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('drag-over');
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('drag-over');
+                if (e.dataTransfer.files.length > 0) {
+                    handleFile(e.dataTransfer.files[0]);
+                }
+            });
+
+            // 3. Zoom リセットボタン (Linear)
+            document.getElementById('resetZoomBtnLin').addEventListener('click', () => {
+                if (chartInstanceLin) {
+                    chartInstanceLin.resetZoom();
+                    document.getElementById('resetZoomBtnLin').classList.add('hidden');
+                }
+            });
+
+            // 4. Zoom リセットボタン (Log)
+            document.getElementById('resetZoomBtnLog').addEventListener('click', () => {
+                if (chartInstanceLog) {
+                    chartInstanceLog.resetZoom();
+                    document.getElementById('resetZoomBtnLog').classList.add('hidden');
+                }
+            });
+
+            // 4.5. X軸スケールの適用とリセット
+            document.getElementById('applyXAxisBtn').addEventListener('click', () => renderChart());
+
+            document.getElementById('resetXAxisBtn').addEventListener('click', () => {
+                document.getElementById('xAxisMin').value = '';
+                document.getElementById('xAxisMax').value = '';
+                renderChart();
+            });
+
+            // 5. Y軸スケールの適用とリセット
+            document.getElementById('applyYAxisBtn').addEventListener('click', () => renderChart());
+
+            document.getElementById('resetYAxisBtn').addEventListener('click', () => {
+                // 入力欄をクリアして再描画 (Autoに戻す)
+                document.getElementById('yAxisMinLin').value = '';
+                document.getElementById('yAxisMaxLin').value = '';
+                document.getElementById('yAxisMinLog').value = '';
+                document.getElementById('yAxisMaxLog').value = '';
+                renderChart();
+            });
+
+            // 6. Energy Calibration の適用とリセット
+            document.getElementById('applyCalibBtn').addEventListener('click', () => {
+                const inputA = parseFloat(document.getElementById('calibA').value);
+                const inputB = parseFloat(document.getElementById('calibB').value);
+                
+                if (!isNaN(inputA) && !isNaN(inputB)) {
+                    calibA = inputA;
+                    calibB = inputB;
+                    isCalibrated = true;
+                    renderChart();
+                } else {
+                    alert('Valid numbers for a and b are required for calibration.');
+                }
+            });
+
+            document.getElementById('resetCalibBtn').addEventListener('click', () => {
+                document.getElementById('calibA').value = '';
+                document.getElementById('calibB').value = '';
+                isCalibrated = false;
+                calibA = 1.0;
+                calibB = 0.0;
+                renderChart();
+            });
+        });
+    </script>
+</body>
+</html>
