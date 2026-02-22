@@ -22,6 +22,9 @@
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800 h-screen overflow-hidden flex flex-col">
+    
+    <!-- Toast Container (非同期メッセージ表示用) -->
+    <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
     <header class="bg-white shadow-sm px-6 py-4 flex justify-between items-center border-b border-gray-200 shrink-0">
         <h1 class="text-xl font-bold text-gray-900 flex items-center">
@@ -31,115 +34,126 @@
     </header>
 
     <main class="flex-grow p-4 md:p-6 flex flex-col md:flex-row gap-4 max-w-[1600px] mx-auto w-full min-h-0 overflow-hidden">
-        <!-- Sidebar for file input and metadata -->
-        <aside class="w-full md:w-1/4 flex flex-col gap-4 h-full overflow-y-auto pr-2 pb-2 shrink-0">
-            <div id="dropZone" class="bg-white p-6 rounded-lg shadow-sm border-2 border-dashed border-gray-300 text-center transition-colors cursor-pointer hover:bg-gray-50 shrink-0">
+        <!-- Sidebar for file input and metadata (幅を固定化・コンパクトに) -->
+        <aside class="w-full md:w-[280px] flex flex-col gap-3 h-full overflow-y-auto pr-2 pb-2 shrink-0">
+            <div id="dropZone" class="bg-white p-4 rounded-lg shadow-sm border-2 border-dashed border-gray-300 text-center transition-colors cursor-pointer hover:bg-gray-50 shrink-0">
                 <input type="file" id="fileInput" accept=".mca" class="hidden">
-                <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                <svg class="mx-auto h-8 w-8 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
                     <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
-                <div class="mt-4 text-sm text-gray-600">
-                    <span class="font-medium text-blue-600 hover:text-blue-500">クリックしてファイルを選択</span>
-                    <br>または .mca ファイルをドラッグ＆ドロップ
+                <div class="mt-2 text-xs text-gray-600">
+                    <span class="font-medium text-blue-600">ファイルを選択</span> または<br>ドラッグ＆ドロップ
                 </div>
             </div>
 
-            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex-grow">
-                <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider mb-3 border-b pb-2">Measurement Data</h2>
-                <div id="metadataContainer" class="space-y-2 text-sm text-gray-600 overflow-y-auto max-h-[500px]">
-                    <!-- Metadata will be injected here -->
-                    <p class="text-gray-400 italic">No data loaded.</p>
+            <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200 shrink-0">
+                <h2 class="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 border-b pb-1">Measurement Data</h2>
+                <div id="metadataContainer" class="space-y-1 text-sm text-gray-600">
+                    <p class="text-gray-400 italic text-xs">No data loaded.</p>
                 </div>
             </div>
 
-            <!-- X-Axis Settings Panel -->
-            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                <h3 class="text-sm font-semibold text-gray-800 mb-3 border-b pb-1">X-Axis Range</h3>
-                <div class="flex flex-col gap-2">
-                    <div class="flex items-center gap-2">
-                        <label class="text-[10px] text-gray-500 w-6">Max:</label>
-                        <input type="number" id="xAxisMax" class="border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:border-blue-500" placeholder="Auto">
+            <!-- X-Axis Settings Panel (Min/Max 横並び) -->
+            <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200 shrink-0">
+                <h3 class="text-xs font-semibold text-gray-800 mb-2 border-b pb-1">X-Axis Range</h3>
+                <div class="flex gap-2">
+                    <div class="flex items-center gap-1 flex-1">
+                        <label class="text-[10px] text-gray-500">Min:</label>
+                        <input type="number" id="xAxisMin" class="border border-gray-300 rounded px-1.5 py-1 text-xs w-full focus:outline-none focus:border-blue-500" placeholder="Auto">
                     </div>
-                    <div class="flex items-center gap-2">
-                        <label class="text-[10px] text-gray-500 w-6">Min:</label>
-                        <input type="number" id="xAxisMin" class="border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:border-blue-500" placeholder="Auto">
+                    <div class="flex items-center gap-1 flex-1">
+                        <label class="text-[10px] text-gray-500">Max:</label>
+                        <input type="number" id="xAxisMax" class="border border-gray-300 rounded px-1.5 py-1 text-xs w-full focus:outline-none focus:border-blue-500" placeholder="Auto">
                     </div>
-                    <div class="flex gap-2 mt-2">
-                        <button id="applyXAxisBtn" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-1.5 px-3 rounded w-full transition-colors">Apply</button>
-                        <button id="resetXAxisBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium py-1.5 px-3 rounded w-full transition-colors border border-gray-300">Reset</button>
-                    </div>
+                </div>
+                <div class="flex gap-2 mt-2">
+                    <button id="applyXAxisBtn" class="bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-medium py-1 px-2 rounded w-full transition-colors">Apply</button>
+                    <button id="resetXAxisBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-medium py-1 px-2 rounded w-full transition-colors border border-gray-300">Reset</button>
                 </div>
             </div>
 
-            <!-- Y-Axis Settings Panel -->
-            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                <h3 class="text-sm font-semibold text-gray-800 mb-3 border-b pb-1">Y-Axis Range</h3>
+            <!-- Y-Axis Settings Panel (Min/Max 横並び) -->
+            <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200 shrink-0">
+                <h3 class="text-xs font-semibold text-gray-800 mb-2 border-b pb-1">Y-Axis Range</h3>
                 
                 <!-- Linear Settings -->
-                <div class="mb-3">
-                    <span class="text-xs font-bold text-gray-700 block mb-1">Linear</span>
-                    <div class="flex items-center gap-2 mb-1">
-                        <label class="text-[10px] text-gray-500 w-6">Max:</label>
-                        <input type="number" id="yAxisMaxLin" class="border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:border-blue-500" placeholder="Auto">
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <label class="text-[10px] text-gray-500 w-6">Min:</label>
-                        <input type="number" id="yAxisMinLin" class="border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:border-blue-500" placeholder="Auto">
+                <div class="mb-2">
+                    <span class="text-[10px] font-bold text-gray-700 block mb-1">Linear</span>
+                    <div class="flex gap-2">
+                        <div class="flex items-center gap-1 flex-1">
+                            <label class="text-[10px] text-gray-500">Min:</label>
+                            <input type="number" id="yAxisMinLin" class="border border-gray-300 rounded px-1.5 py-1 text-xs w-full focus:outline-none focus:border-blue-500" placeholder="Auto">
+                        </div>
+                        <div class="flex items-center gap-1 flex-1">
+                            <label class="text-[10px] text-gray-500">Max:</label>
+                            <input type="number" id="yAxisMaxLin" class="border border-gray-300 rounded px-1.5 py-1 text-xs w-full focus:outline-none focus:border-blue-500" placeholder="Auto">
+                        </div>
                     </div>
                 </div>
 
                 <!-- Log Settings -->
-                <div class="mb-3">
-                    <span class="text-xs font-bold text-gray-700 block mb-1">Log</span>
-                    <div class="flex items-center gap-2 mb-1">
-                        <label class="text-[10px] text-gray-500 w-6">Max:</label>
-                        <input type="number" id="yAxisMaxLog" class="border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:border-blue-500" placeholder="Auto">
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <label class="text-[10px] text-gray-500 w-6">Min:</label>
-                        <input type="number" id="yAxisMinLog" class="border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:border-blue-500" placeholder="Auto">
+                <div class="mb-2">
+                    <span class="text-[10px] font-bold text-gray-700 block mb-1">Log</span>
+                    <div class="flex gap-2">
+                        <div class="flex items-center gap-1 flex-1">
+                            <label class="text-[10px] text-gray-500">Min:</label>
+                            <input type="number" id="yAxisMinLog" class="border border-gray-300 rounded px-1.5 py-1 text-xs w-full focus:outline-none focus:border-blue-500" placeholder="Auto">
+                        </div>
+                        <div class="flex items-center gap-1 flex-1">
+                            <label class="text-[10px] text-gray-500">Max:</label>
+                            <input type="number" id="yAxisMaxLog" class="border border-gray-300 rounded px-1.5 py-1 text-xs w-full focus:outline-none focus:border-blue-500" placeholder="Auto">
+                        </div>
                     </div>
                 </div>
 
-                <div class="flex gap-2 mt-4">
-                    <button id="applyYAxisBtn" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-1.5 px-3 rounded w-full transition-colors">Apply</button>
-                    <button id="resetYAxisBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium py-1.5 px-3 rounded w-full transition-colors border border-gray-300">Reset</button>
+                <div class="flex gap-2 mt-2">
+                    <button id="applyYAxisBtn" class="bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-medium py-1 px-2 rounded w-full transition-colors">Apply</button>
+                    <button id="resetYAxisBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-medium py-1 px-2 rounded w-full transition-colors border border-gray-300">Reset</button>
                 </div>
             </div>
             
-            <!-- Energy Calibration Panel -->
-            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                <h3 class="text-sm font-semibold text-gray-800 mb-3 border-b pb-1">Energy Calibration</h3>
-                <p class="text-[10px] text-gray-500 mb-2 font-mono">Energy = a * Channel + b</p>
+            <!-- Energy Calibration Panel (a/b 横並び) -->
+            <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200 shrink-0">
+                <h3 class="text-xs font-semibold text-gray-800 mb-1 border-b pb-1">Energy Calibration</h3>
+                <p class="text-[9px] text-gray-500 mb-2 font-mono">E = a * Ch + b</p>
                 
-                <div class="flex flex-col gap-2">
-                    <div class="flex items-center gap-2">
-                        <label class="text-xs text-gray-600 w-4 font-mono font-bold">a:</label>
-                        <input type="number" id="calibA" step="any" class="border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:border-blue-500" placeholder="e.g. 1.0">
+                <div class="flex gap-2">
+                    <div class="flex items-center gap-1 flex-1">
+                        <label class="text-[10px] text-gray-600 font-mono font-bold">a:</label>
+                        <input type="number" id="calibA" step="any" class="border border-gray-300 rounded px-1.5 py-1 text-xs w-full focus:outline-none focus:border-blue-500" placeholder="1.0">
                     </div>
-                    <div class="flex items-center gap-2">
-                        <label class="text-xs text-gray-600 w-4 font-mono font-bold">b:</label>
-                        <input type="number" id="calibB" step="any" class="border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:border-blue-500" placeholder="e.g. 0.0">
+                    <div class="flex items-center gap-1 flex-1">
+                        <label class="text-[10px] text-gray-600 font-mono font-bold">b:</label>
+                        <input type="number" id="calibB" step="any" class="border border-gray-300 rounded px-1.5 py-1 text-xs w-full focus:outline-none focus:border-blue-500" placeholder="0.0">
                     </div>
-                    <div class="flex gap-2 mt-2">
-                        <button id="applyCalibBtn" class="bg-green-600 hover:bg-green-700 text-white text-xs font-medium py-1.5 px-3 rounded w-full transition-colors">Calibrate</button>
-                        <button id="resetCalibBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium py-1.5 px-3 rounded w-full transition-colors border border-gray-300">Reset</button>
-                    </div>
+                </div>
+                <div class="flex gap-2 mt-2">
+                    <button id="applyCalibBtn" class="bg-green-600 hover:bg-green-700 text-white text-[11px] font-medium py-1 px-2 rounded w-full transition-colors">Calibrate</button>
+                    <button id="resetCalibBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-medium py-1 px-2 rounded w-full transition-colors border border-gray-300">Reset</button>
                 </div>
             </div>
 
-            <div class="bg-blue-50 p-4 rounded-lg shadow-sm border border-blue-100 shrink-0">
-                <h3 class="text-sm font-semibold text-blue-800 mb-1">操作ヒント</h3>
-                <ul class="text-xs text-blue-700 list-disc list-inside space-y-1">
-                    <li>マウスホイール: X軸ズーム</li>
-                    <li>ドラッグ: グラフのパン（移動）</li>
-                    <li>データ点ホバー: カウント数表示</li>
+            <!-- Export Data Panel (新規追加) -->
+            <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200 shrink-0">
+                <h3 class="text-xs font-semibold text-gray-800 mb-2 border-b pb-1">Export Data</h3>
+                <button id="exportCsvBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-medium py-1.5 px-2 rounded w-full transition-colors flex justify-center items-center">
+                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    Export as CSV
+                </button>
+            </div>
+
+            <div class="bg-blue-50 p-3 rounded-lg shadow-sm border border-blue-100 shrink-0">
+                <h3 class="text-[11px] font-semibold text-blue-800 mb-1">操作ヒント</h3>
+                <ul class="text-[10px] text-blue-700 list-disc list-inside space-y-0.5">
+                    <li>ホイール: X軸ズーム</li>
+                    <li>ドラッグ: グラフのパン</li>
+                    <li>ホバー: カウント数表示</li>
                 </ul>
             </div>
         </aside>
 
-        <!-- Main Chart Area -->
-        <section class="w-full md:w-3/4 flex flex-col gap-4 h-full min-h-0">
+        <!-- Main Chart Area (flex-1にすることで残りの画面幅をすべて使用) -->
+        <section class="flex-1 flex flex-col gap-4 h-full min-h-0">
             <!-- Linear Chart -->
             <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col flex-1 min-h-0">
                 <div class="flex justify-between items-center mb-2 shrink-0">
@@ -169,6 +183,31 @@
     </main>
 
     <script>
+        // --- トースト通知機能 (alertの代替・ブロック回避) ---
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            let bgColor = 'bg-blue-600';
+            if (type === 'error') bgColor = 'bg-red-600';
+            if (type === 'success') bgColor = 'bg-green-600';
+            if (type === 'warning') bgColor = 'bg-yellow-600';
+
+            toast.className = `${bgColor} text-white px-4 py-3 rounded shadow-lg text-sm font-medium transition-all duration-300 opacity-0 transform translate-y-[-10px]`;
+            toast.textContent = message;
+            
+            document.getElementById('toastContainer').appendChild(toast);
+            
+            // フェードイン
+            setTimeout(() => {
+                toast.classList.remove('opacity-0', 'translate-y-[-10px]');
+            }, 10);
+            
+            // 3秒後にフェードアウトして削除
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-[-10px]');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
         let chartInstanceLin = null;
         let chartInstanceLog = null;
         
@@ -400,32 +439,49 @@
             document.getElementById('resetZoomBtnLog').classList.add('hidden');
         }
 
-        // --- メタデータの表示更新 ---
-        function updateMetadataUI(meta) {
+        // --- メタデータの表示更新 (学術的に必要な情報のみに絞り込み、カウントレートを計算) ---
+        function updateMetadataUI(meta, dataArray) {
             const container = document.getElementById('metadataContainer');
             container.innerHTML = '';
             
-            if (Object.keys(meta).length === 0) {
-                container.innerHTML = '<p class="text-gray-400 italic">No valid metadata found.</p>';
+            if (Object.keys(meta).length === 0 && (!dataArray || dataArray.length === 0)) {
+                container.innerHTML = '<p class="text-gray-400 italic">No data loaded.</p>';
                 return;
             }
 
-            // 重要な情報を優先して表示
-            const priorityKeys = ['LIVE_TIME', 'REAL_TIME', 'START_TIME', 'GAIN', 'Real Time', 'Live Time'];
+            // 必要なデータを抽出
+            const startTime = meta['START_TIME'] || meta['Start Time'] || 'Unknown';
+            const liveTimeRaw = parseFloat(meta['LIVE_TIME'] || meta['Live Time'] || 0);
+            const realTimeRaw = parseFloat(meta['REAL_TIME'] || meta['Real Time'] || 0);
             
-            priorityKeys.forEach(key => {
-                if (meta[key]) {
-                    container.innerHTML += `<div class="flex justify-between border-b border-gray-100 py-1"><span class="font-medium">${key}</span><span>${meta[key]}</span></div>`;
-                    delete meta[key]; // 残りのリストから除外
-                }
-            });
+            // 0.1秒精度でフォーマット
+            const liveTimeStr = liveTimeRaw > 0 ? liveTimeRaw.toFixed(1) + ' s' : 'N/A';
+            const realTimeStr = realTimeRaw > 0 ? realTimeRaw.toFixed(1) + ' s' : 'N/A';
 
-            // 残りのメタデータを表示
-            for (const [key, value] of Object.entries(meta)) {
-                if(value) {
-                    container.innerHTML += `<div class="flex justify-between border-b border-gray-100 py-1 opacity-70"><span class="font-medium text-xs">${key}</span><span class="text-xs truncate max-w-[150px]" title="${value}">${value}</span></div>`;
-                }
+            // カウントレートの計算 (Total Counts / Live Time)
+            let countRateStr = 'N/A';
+            if (dataArray && dataArray.length > 0 && liveTimeRaw > 0) {
+                const totalCounts = dataArray.reduce((sum, val) => sum + val, 0);
+                const countRate = totalCounts / liveTimeRaw;
+                countRateStr = countRate.toFixed(2) + ' cps';
             }
+
+            // UIへの描画 (厳選した4項目のみ)
+            const items = [
+                { label: 'Start Time', value: startTime },
+                { label: 'Live Time', value: liveTimeStr },
+                { label: 'Real Time', value: realTimeStr },
+                { label: 'Count Rate', value: countRateStr }
+            ];
+
+            items.forEach(item => {
+                container.innerHTML += `
+                    <div class="flex justify-between border-b border-gray-100 py-1.5">
+                        <span class="font-medium text-gray-700">${item.label}</span>
+                        <span class="text-gray-900 font-mono text-xs">${item.value}</span>
+                    </div>
+                `;
+            });
         }
 
         // --- ファイル読み込み処理 ---
@@ -438,7 +494,7 @@
                 const parsed = parseMCA(text);
                 
                 if (parsed.data.length === 0) {
-                    alert("No valid spectrum data found in the file.");
+                    showToast("No valid spectrum data found in the file.", "error");
                     return;
                 }
 
@@ -446,7 +502,9 @@
                 currentRawData = parsed.data;
                 currentFilename = file.name;
                 renderChart();
-                updateMetadataUI(parsed.meta);
+                // updateMetadataUIにパースしたデータ(dataArray)も渡してカウントレートを計算させる
+                updateMetadataUI(parsed.meta, parsed.data);
+                showToast("データファイルを読み込みました。", "success");
             };
             reader.readAsText(file);
         }
@@ -462,13 +520,18 @@
                 plugins: { legend: { display: false } }
             };
 
+            const xAxisTitle = isCalibrated ? 'Energy' : 'Channel';
+
+            if (chartInstanceLin) chartInstanceLin.destroy();
+            if (chartInstanceLog) chartInstanceLog.destroy();
+
             chartInstanceLin = new Chart(ctxLin, {
                 type: 'line',
                 data: { datasets: [] },
                 options: {
                     ...commonOptions,
                     scales: {
-                        x: { type: 'linear', title: { display: true, text: 'Channel' }, min: 0, max: 1024, grid: { color: 'rgba(0,0,0,0.05)' } },
+                        x: { type: 'linear', title: { display: true, text: xAxisTitle }, min: 0, max: 1024, grid: { color: 'rgba(0,0,0,0.05)' } },
                         y: { type: 'linear', title: { display: true, text: 'Counts' }, min: 0, max: 100, grid: { color: 'rgba(0,0,0,0.05)' } }
                     }
                 }
@@ -480,7 +543,7 @@
                 options: {
                     ...commonOptions,
                     scales: {
-                        x: { type: 'linear', title: { display: true, text: 'Channel' }, min: 0, max: 1024, grid: { color: 'rgba(0,0,0,0.05)' } },
+                        x: { type: 'linear', title: { display: true, text: xAxisTitle }, min: 0, max: 1024, grid: { color: 'rgba(0,0,0,0.05)' } },
                         y: { type: 'logarithmic', title: { display: true, text: 'Counts (Log)' }, min: 0.1, max: 100, grid: { color: 'rgba(0,0,0,0.05)' } }
                     }
                 }
@@ -537,16 +600,23 @@
             });
 
             // 4.5. X軸スケールの適用とリセット
-            document.getElementById('applyXAxisBtn').addEventListener('click', () => renderChart());
+            document.getElementById('applyXAxisBtn').addEventListener('click', () => {
+                if (currentRawData.length === 0) renderEmptyChart();
+                else renderChart();
+            });
 
             document.getElementById('resetXAxisBtn').addEventListener('click', () => {
                 document.getElementById('xAxisMin').value = '';
                 document.getElementById('xAxisMax').value = '';
-                renderChart();
+                if (currentRawData.length === 0) renderEmptyChart();
+                else renderChart();
             });
 
             // 5. Y軸スケールの適用とリセット
-            document.getElementById('applyYAxisBtn').addEventListener('click', () => renderChart());
+            document.getElementById('applyYAxisBtn').addEventListener('click', () => {
+                if (currentRawData.length === 0) renderEmptyChart();
+                else renderChart();
+            });
 
             document.getElementById('resetYAxisBtn').addEventListener('click', () => {
                 // 入力欄をクリアして再描画 (Autoに戻す)
@@ -554,21 +624,33 @@
                 document.getElementById('yAxisMaxLin').value = '';
                 document.getElementById('yAxisMinLog').value = '';
                 document.getElementById('yAxisMaxLog').value = '';
-                renderChart();
+                if (currentRawData.length === 0) renderEmptyChart();
+                else renderChart();
             });
 
             // 6. Energy Calibration の適用とリセット
             document.getElementById('applyCalibBtn').addEventListener('click', () => {
-                const inputA = parseFloat(document.getElementById('calibA').value);
-                const inputB = parseFloat(document.getElementById('calibB').value);
+                let inputA = parseFloat(document.getElementById('calibA').value);
+                let inputB = parseFloat(document.getElementById('calibB').value);
+                
+                // 未入力（空欄）の場合はプレースホルダーの値をデフォルトとして採用
+                if (isNaN(inputA) && document.getElementById('calibA').value === '') inputA = 1.0;
+                if (isNaN(inputB) && document.getElementById('calibB').value === '') inputB = 0.0;
                 
                 if (!isNaN(inputA) && !isNaN(inputB)) {
                     calibA = inputA;
                     calibB = inputB;
                     isCalibrated = true;
-                    renderChart();
+                    
+                    if (currentRawData.length === 0) {
+                        renderEmptyChart();
+                        showToast('設定を保存しました。データ読み込み時にEnergyとして適用されます。', 'info');
+                    } else {
+                        renderChart();
+                        showToast('Energyキャリブレーションを適用しました。', 'success');
+                    }
                 } else {
-                    alert('Valid numbers for a and b are required for calibration.');
+                    showToast('aとbには有効な数値を入力してください。', 'error');
                 }
             });
 
@@ -578,8 +660,83 @@
                 isCalibrated = false;
                 calibA = 1.0;
                 calibB = 0.0;
-                renderChart();
+                if (currentRawData.length === 0) renderEmptyChart();
+                else renderChart();
+                showToast('キャリブレーションをリセットしました。', 'info');
             });
+
+            // 7. CSV Export機能 (File System Access API による保存先選択対応)
+            document.getElementById('exportCsvBtn').addEventListener('click', async () => {
+                if (currentRawData.length === 0) {
+                    showToast('エクスポートするデータがありません。先にファイルを読み込んでください。', 'warning');
+                    return;
+                }
+
+                // ヘッダー行の作成
+                let csvContent = "Channel,Energy,Count\n";
+                
+                // データ行の作成
+                for (let i = 0; i < currentRawData.length; i++) {
+                    const channel = i;
+                    const count = currentRawData[i];
+                    // キャリブレーション未設定時はEnergyを0とする
+                    const energy = isCalibrated ? (calibA * i + calibB) : 0;
+                    
+                    csvContent += `${channel},${energy},${count}\n`;
+                }
+
+                const baseName = currentFilename !== 'Spectrum' ? currentFilename.replace(/\.[^/.]+$/, "") : 'Spectrum';
+                const defaultFilename = `${baseName}_exported.csv`;
+
+                try {
+                    // モダンブラウザ用: 保存先ダイアログを開く (File System Access API)
+                    if (window.showSaveFilePicker) {
+                        const opts = {
+                            suggestedName: defaultFilename,
+                            types: [{
+                                description: 'CSV File',
+                                accept: {'text/csv': ['.csv']},
+                            }],
+                        };
+                        
+                        // ユーザーが保存先ディレクトリを選択
+                        const handle = await window.showSaveFilePicker(opts);
+                        const writable = await handle.createWritable();
+                        // 選択された場所にデータを書き込み
+                        await writable.write(csvContent);
+                        await writable.close();
+                        
+                        showToast('CSVファイルを指定の場所に保存しました。', 'success');
+                    } else {
+                        // API非対応環境向けのフォールバック
+                        triggerLegacyDownload(csvContent, defaultFilename);
+                    }
+                } catch (err) {
+                    // ユーザーが「キャンセル」を押した場合
+                    if (err.name === 'AbortError') {
+                        showToast('保存がキャンセルされました。', 'info');
+                    } else {
+                        // iframeなどのセキュリティ制限(SecurityError)でAPIがブロックされた場合は
+                        // エラーログを出さずに静かにフォールバック（通常のダウンロード）を実行する
+                        triggerLegacyDownload(csvContent, defaultFilename);
+                    }
+                }
+            });
+
+            // 従来のダウンロードフォルダ保存方式（フォールバック用）
+            function triggerLegacyDownload(content, filename) {
+                const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.setAttribute('href', url);
+                link.setAttribute('download', filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url); // メモリ解放
+                showToast('ブラウザの標準設定に従い、CSVをダウンロードしました。', 'success');
+            }
         });
     </script>
 </body>
